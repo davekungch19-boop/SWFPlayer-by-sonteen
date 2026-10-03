@@ -3,7 +3,11 @@ package com.sonteenswfplayer
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.webkit.*
 import android.widget.*
 import java.io.ByteArrayInputStream
@@ -11,6 +15,7 @@ import java.io.InputStream
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
+    private lateinit var overlay: View
     private val PICK = 10
     private val HOST = "appassets.androidplatform.net"
     private var swfUri: Uri? = null
@@ -37,10 +42,37 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun goImmersive() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let {
+                it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) goImmersive()
+    }
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         setContentView(R.layout.activity_main)
+        goImmersive()
         web = findViewById(R.id.web)
+        overlay = findViewById(R.id.overlay)
         val pick = findViewById<Button>(R.id.pick)
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
@@ -81,9 +113,19 @@ class MainActivity : Activity() {
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (e: Exception) { }
             swfUri = uri
-            Toast.makeText(this, "เลือกไฟล์แล้ว: ${uri.lastPathSegment}", Toast.LENGTH_SHORT).show()
+            overlay.visibility = View.GONE
             val swfUrl = "https://$HOST/swf?n=${++counter}"
             web.loadUrl("https://$HOST/player.html?swf=" + Uri.encode(swfUrl))
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (overlay.visibility != View.VISIBLE) {
+            web.loadUrl("about:blank")
+            overlay.visibility = View.VISIBLE
+        } else {
+            super.onBackPressed()
         }
     }
 }
